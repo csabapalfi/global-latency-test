@@ -2,6 +2,7 @@
 
 URLS="$1"
 DEST="$2"
+
 COUNT=50
 PARALLEL=3
 HEADERS=false
