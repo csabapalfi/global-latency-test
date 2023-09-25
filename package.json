@@ -1,13 +1,14 @@
 {
-  "name": "hello-world",
-  "repository": "https://github.com/vercel/examples.git",
+  "name": "global-latency-test",
   "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate-routes": "./scripts/generate-routes.sh",
+    "test-urls": "./scripts/test-urls.sh"
   },
   "dependencies": {
     "next": "latest",
@@ -17,6 +18,6 @@
   "devDependencies": {
     "eslint": "8.29.0",
     "eslint-config-next": "latest",
-    "turbo": "^1.8.5"
+    "vercel": "^32.3.0"
   }
 }
