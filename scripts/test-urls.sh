@@ -4,7 +4,7 @@ URLS="$1"
 DEST="$2"
 COUNT=50
 PARALLEL=3
-HEADERS=true
+HEADERS=false
 API="https://global-latency-test-csaba.vercel.app/api"
 
 mkdir -p "$DEST"

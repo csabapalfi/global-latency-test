@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "generate-routes": "./scripts/generate-routes.sh",
-    "test-urls": "./scripts/test-urls.sh"
+    "generate-routes": "./scripts/generate-routes.sh"
   },
   "dependencies": {
     "next": "latest",

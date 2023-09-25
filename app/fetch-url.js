@@ -1,13 +1,23 @@
-import computeBenchmarkIndex from "./benchmark";
-
 export default function fetchUrl(region) {
   return async (request) => {
-    const { url, label, includeHeaders, includeBenchmark, count, parallel } = parseSearchParams(request.url);
+    const { url, label, includeHeaders, count, parallel } =
+      parseSearchParams(request.url);
     if (isInvalidRequest(url, count, parallel, region)) {
-      return badResponse(region, url, count, parallel, includeBenchmark);
+      return badResponse(region, url, count, parallel);
     }
-    const { latencies, headers } = await fetchAndMeasure(url, count, parallel, includeHeaders);
-    return buildResponse(region, url, label, latencies, headers, includeBenchmark);
+    const { latencies, headers } = await fetchAndMeasure(
+      url,
+      count,
+      parallel,
+      includeHeaders
+    );
+    return buildResponse(
+      region,
+      url,
+      label,
+      latencies,
+      headers
+    );
   };
 }
 
@@ -17,7 +27,6 @@ function parseSearchParams(url) {
     url: searchParams.get("url"),
     label: searchParams.get("label"),
     includeHeaders: searchParams.get("headers") === "true",
-    includeBenchmark: searchParams.get("benchmark") === "true",
     count: parseParamToInt(searchParams.get("count"), 3),
     parallel: parseParamToInt(searchParams.get("parallel"), 3),
   };
@@ -37,16 +46,19 @@ function isInvalidRequest(url, count, parallel, region) {
   );
 }
 
-function badResponse(region, url, count, parallel, includeBenchmark) {
+function badResponse(region, url, count, parallel) {
   return new Response(
-    JSON.stringify({
-      error: "Bad Request",
-      region,
-      url,
-      count,
-      parallel,
-      ...(includeBenchmark && { benchmarkIndex: computeBenchmarkIndex() }),
-    }, null, 2),
+    JSON.stringify(
+      {
+        error: "Bad Request",
+        region,
+        url,
+        count,
+        parallel,
+      },
+      null,
+      2
+    ),
     { status: 400 }
   );
 }
@@ -56,11 +68,13 @@ async function fetchAndMeasure(url, count, parallel, includeHeaders) {
   const headers = [];
   for (let i = 0; i < count; i += parallel) {
     const results = await Promise.all(
-      Array(Math.min(parallel, count - i)).fill().map(() => fetchWithLatency(url, includeHeaders))
+      Array(Math.min(parallel, count - i))
+        .fill()
+        .map(() => fetchWithLatency(url, includeHeaders))
     );
-    latencies.push(...results.map(result => result.latency));
+    latencies.push(...results.map((result) => result.latency));
     if (includeHeaders) {
-      headers.push(...results.map(result => result.headers));
+      headers.push(...results.map((result) => result.headers));
     }
   }
   return { latencies, headers };
@@ -79,10 +93,15 @@ async function fetchWithLatency(url, includeHeaders) {
   return { latency, headers };
 }
 
-function buildResponse(region, url, label, latencies, headers, includeBenchmark) {
+function buildResponse(
+  region,
+  url,
+  label,
+  latencies,
+  headers
+) {
   return Response.json({
     region,
-    ...(includeBenchmark && { benchmarkIndex: computeBenchmarkIndex() }),
     url,
     label,
     latencies,
