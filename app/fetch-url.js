@@ -2,78 +2,90 @@ import computeBenchmarkIndex from "./benchmark";
 
 export default function fetchUrl(region) {
   return async (request) => {
-  const { searchParams } = new URL(request.url);
-  const url = searchParams.get("url");
-  const label = searchParams.get("label");
-  const includeHeaders = searchParams.get("headers") === "true";
-  const includeBenchmark = searchParams.get("benchmark") === "true";
-  const countString = searchParams.get("count");
-  const count = parseInt(countString ?? "", 10) || 3;
-  const parallelString = searchParams.get("parallel");
-  const parallel = parseInt(parallelString ?? "", 10) || 3;
+    const { url, label, includeHeaders, includeBenchmark, count, parallel } = parseSearchParams(request.url);
+    if (isInvalidRequest(url, count, parallel, region)) {
+      return badResponse(region, url, count, parallel, includeBenchmark);
+    }
+    const { latencies, headers } = await fetchAndMeasure(url, count, parallel, includeHeaders);
+    return buildResponse(region, url, label, latencies, headers, includeBenchmark);
+  };
+}
 
-  const latencies = [];
-  const headers = [];
+function parseSearchParams(url) {
+  const searchParams = new URL(url).searchParams;
+  return {
+    url: searchParams.get("url"),
+    label: searchParams.get("label"),
+    includeHeaders: searchParams.get("headers") === "true",
+    includeBenchmark: searchParams.get("benchmark") === "true",
+    count: parseParamToInt(searchParams.get("count"), 3),
+    parallel: parseParamToInt(searchParams.get("parallel"), 3),
+  };
+}
 
-  if (
+function parseParamToInt(param, defaultValue) {
+  const parsedValue = parseInt(param || "", 10);
+  return isNaN(parsedValue) ? defaultValue : parsedValue;
+}
+
+function isInvalidRequest(url, count, parallel, region) {
+  return (
     !url ||
-    isNaN(count) ||
     count <= 0 ||
-    isNaN(parallel) ||
     parallel <= 0 ||
     (region.actual.id !== "dev1" && region.actual.id !== region.target.id)
-  ) {
-    return new Response(
-      JSON.stringify(
-        {
-          error: "Bad Request",
-          region,
-          url,
-          count,
-          parallel,
-          ...(includeBenchmark && { benchmarkIndex: computeBenchmarkIndex() }),
-        },
-        null,
-        2
-      ),
-      { status: 400 }
-    );
-  }
+  );
+}
 
-  const fetchWithLatency = async () => {
-    const start = Date.now();
-    const response = await fetch(url);
-    const latency = Date.now() - start;
-    let headers = {};
-    if (includeHeaders) {
-      for (let [key, value] of response.headers.entries()) {
-        headers[key] = value;
-      }
-    }
-    return { latency, headers };
-  };
+function badResponse(region, url, count, parallel, includeBenchmark) {
+  return new Response(
+    JSON.stringify({
+      error: "Bad Request",
+      region,
+      url,
+      count,
+      parallel,
+      ...(includeBenchmark && { benchmarkIndex: computeBenchmarkIndex() }),
+    }, null, 2),
+    { status: 400 }
+  );
+}
 
+async function fetchAndMeasure(url, count, parallel, includeHeaders) {
+  const latencies = [];
+  const headers = [];
   for (let i = 0; i < count; i += parallel) {
-    const promises = [];
-    for (let j = 0; j < parallel && i + j < count; j++) {
-      promises.push(fetchWithLatency());
-    }
-    const results = await Promise.all(promises);
-    latencies.push(...results.map(({ latency }) => latency));
+    const results = await Promise.all(
+      Array(Math.min(parallel, count - i)).fill().map(() => fetchWithLatency(url, includeHeaders))
+    );
+    latencies.push(...results.map(result => result.latency));
     if (includeHeaders) {
-      headers.push(...results.map(({ headers }) => headers));
+      headers.push(...results.map(result => result.headers));
     }
   }
+  return { latencies, headers };
+}
 
-  latencies.sort();
+async function fetchWithLatency(url, includeHeaders) {
+  const start = Date.now();
+  const response = await fetch(url);
+  const latency = Date.now() - start;
+  let headers = {};
+  if (includeHeaders) {
+    for (let [key, value] of response.headers.entries()) {
+      headers[key] = value;
+    }
+  }
+  return { latency, headers };
+}
 
+function buildResponse(region, url, label, latencies, headers, includeBenchmark) {
   return Response.json({
     region,
-    // benchmark always seem to cause edge function to time out
     ...(includeBenchmark && { benchmarkIndex: computeBenchmarkIndex() }),
     url,
     label,
     latencies,
-    ...(includeHeaders && { headers }),
+    ...(headers.length > 0 && { headers }),
   });
-}}
+}
